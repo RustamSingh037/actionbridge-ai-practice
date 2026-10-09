@@ -3,7 +3,7 @@ import json
 import streamlit as st
 from google import genai
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3.8-flash"
 
 SYSTEM_PROMPT = """
 You are ActionBridge AI, a task-planning assistant.
