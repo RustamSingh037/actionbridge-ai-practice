@@ -1,14 +1,15 @@
 
 import json
-import ollama
+import streamlit as st
+from google import genai
 
-MODEL = "llama3.1:8b"
+MODEL = "gemini-2.5-flash"
 
 SYSTEM_PROMPT = """
 You are ActionBridge AI, a task-planning assistant.
 Turn the user's request into a short, practical plan.
 
-Return ONLY a JSON object with this exact structure:
+Return ONLY a JSON object with this structure:
 {
   "task": "short task name",
   "steps": ["step one", "step two", "step three"]
@@ -19,24 +20,36 @@ Rules:
 - The task must be a string.
 - Steps must be a list of strings.
 - Do not include markdown or extra text.
-- Never claim that an action has been completed.
+- Never claim an action has been completed.
 """
-
 
 def create_plan(user_request: str) -> dict:
     if not user_request.strip():
         raise ValueError("Please enter a task.")
 
-    response = ollama.chat(
+    api_key = st.secrets.get("GEMINI_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "GEMINI_API_KEY is missing. Add it in Streamlit Secrets."
+        )
+
+    client = genai.Client(api_key=api_key)
+
+    response = client.models.generate_content(
         model=MODEL,
-        format="json",
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_request},
-        ],
+        contents=(
+            f"{SYSTEM_PROMPT}\n\n"
+            f"User request: {user_request}"
+        ),
+        config={
+            "response_mime_type": "application/json",
+        },
     )
 
-    result = json.loads(response["message"]["content"])
+    if not response.text:
+        raise ValueError("Gemini returned an empty response.")
+
+    result = json.loads(response.text)
 
     if not isinstance(result.get("task"), str):
         raise ValueError("AI returned an invalid task.")
