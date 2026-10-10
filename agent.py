@@ -1,58 +1,55 @@
 
 import json
 import streamlit as st
-from google import genai
+from groq import Groq
 
-MODEL = "gemini-3.8-flash"
+MODEL = "llama-3.3-70b-versatile"
 
 SYSTEM_PROMPT = """
 You are ActionBridge AI, a task-planning assistant.
-Turn the user's request into a short, practical plan.
-
-Return ONLY a JSON object with this structure:
+Return only a JSON object with this structure:
 {
   "task": "short task name",
   "steps": ["step one", "step two", "step three"]
 }
-
 Rules:
-- Include 2 to 5 steps.
+- Include 2 to 5 practical steps.
 - The task must be a string.
 - Steps must be a list of strings.
-- Do not include markdown or extra text.
 - Never claim an action has been completed.
+- Return JSON only, without markdown.
 """
 
 def create_plan(user_request: str) -> dict:
     if not user_request.strip():
         raise ValueError("Please enter a task.")
 
-    api_key = st.secrets.get("GEMINI_API_KEY")
+    api_key = st.secrets.get("GROQ_API_KEY")
     if not api_key:
         raise ValueError(
-            "GEMINI_API_KEY is missing. Add it in Streamlit Secrets."
+            "GROQ_API_KEY is missing. Add it in Streamlit Secrets."
         )
 
-    client = genai.Client(api_key=api_key)
+    client = Groq(api_key=api_key, timeout=30.0, max_retries=2)
 
-    response = client.models.generate_content(
+    response = client.chat.completions.create(
         model=MODEL,
-        contents=(
-            f"{SYSTEM_PROMPT}\n\n"
-            f"User request: {user_request}"
-        ),
-        config={
-            "response_mime_type": "application/json",
-        },
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_request},
+        ],
+        temperature=0.2,
+        max_completion_tokens=350,
+        response_format={"type": "json_object"},
     )
 
-    if not response.text:
-        raise ValueError("Gemini returned an empty response.")
+    content = response.choices[0].message.content
+    if not content:
+        raise ValueError("The AI returned an empty response.")
 
-    result = json.loads(response.text)
-
+    result = json.loads(content)
     if not isinstance(result.get("task"), str):
-        raise ValueError("AI returned an invalid task.")
+        raise ValueError("The AI returned an invalid task.")
 
     steps = result.get("steps")
     if (
@@ -60,6 +57,6 @@ def create_plan(user_request: str) -> dict:
         or not 2 <= len(steps) <= 5
         or not all(isinstance(step, str) for step in steps)
     ):
-        raise ValueError("AI returned an invalid step list.")
+        raise ValueError("The AI returned an invalid list of steps.")
 
     return result
