@@ -3,7 +3,7 @@ import json
 import streamlit as st
 from groq import Groq
 
-MODEL = "llama-3.3-70b-versatile"
+MODEL = "openai/gpt-oss-20b"
 
 SYSTEM_PROMPT = """
 You are ActionBridge AI, a task-planning assistant.
